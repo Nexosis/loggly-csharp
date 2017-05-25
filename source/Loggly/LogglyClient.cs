@@ -1,16 +1,22 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using Loggly.Config;
 using Loggly.Transports.Syslog;
 using Newtonsoft.Json;
-using System.Threading.Tasks;
 
 namespace Loggly
 {
 
     public class LogglyClient : ILogglyClient
     {
+        public static JsonSerializerSettings SerializerSettings { get; set; } = new JsonSerializerSettings
+        {
+            NullValueHandling = NullValueHandling.Ignore,
+            TypeNameHandling = TypeNameHandling.None,
+        };
+
         private IMessageTransport _transport;
 
         public LogglyClient()
@@ -19,7 +25,7 @@ namespace Loggly
         }
         public async Task<LogResponse> Log(LogglyEvent logglyEvent)
         {
-            return await LogWorker(new [] {logglyEvent}).ConfigureAwait(false);
+            return await LogWorker(new[] { logglyEvent }).ConfigureAwait(false);
         }
 
         public async Task<LogResponse> Log(IEnumerable<LogglyEvent> logglyEvents)
@@ -29,23 +35,23 @@ namespace Loggly
 
         private async Task<LogResponse> LogWorker(LogglyEvent[] events)
         {
-            var response = new LogResponse {Code = ResponseCode.Unknown};
+            var response = new LogResponse { Code = ResponseCode.Unknown };
             try
             {
                 if (LogglyConfig.Instance.IsEnabled)
                 {
                     if (LogglyConfig.Instance.Transport.LogTransport == LogTransport.Https)
                     {
-						if (!LogglyConfig.Instance.Transport.IsOmitTimestamp)
-						{
-							foreach (var e in events)
-							{
-								// syslog has this data in the header, only need to add it for Http
-								e.Data.AddIfAbsent("timestamp", e.Timestamp);
-							}
-						}
+                        if (!LogglyConfig.Instance.Transport.IsOmitTimestamp)
+                        {
+                            foreach (var e in events)
+                            {
+                                // syslog has this data in the header, only need to add it for Http
+                                e.Data.AddIfAbsent("timestamp", e.Timestamp);
+                            }
+                        }
                     }
-                    
+
                     response = await _transport.Send(events.Select(x => new LogglyMessage
                     {
                         Timestamp = x.Timestamp,
@@ -57,7 +63,7 @@ namespace Loggly
                 }
                 else
                 {
-                    response = new LogResponse {Code = ResponseCode.SendDisabled};
+                    response = new LogResponse { Code = ResponseCode.SendDisabled };
                 }
             }
             catch (Exception e)
@@ -69,13 +75,9 @@ namespace Loggly
 
         private static string ToJson(object value)
         {
-            return JsonConvert.SerializeObject(value, new JsonSerializerSettings
-            {
-                NullValueHandling = NullValueHandling.Ignore,
-                TypeNameHandling = TypeNameHandling.None,
-            });
+            return JsonConvert.SerializeObject(value, SerializerSettings);
         }
-        
+
         private IMessageTransport TransportFactory()
         {
             var transport = LogglyConfig.Instance.Transport.LogTransport;
